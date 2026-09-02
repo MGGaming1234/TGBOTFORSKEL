@@ -1,4 +1,4 @@
-    import telebot
+import telebot
 from duckduckgo_search import DDGS
 
 TOKEN = "8988279223:AAF3Y5ZKTkWP15P7zNXUJD9gFP7v7odYCP0"
