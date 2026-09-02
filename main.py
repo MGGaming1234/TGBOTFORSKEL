@@ -18,7 +18,7 @@ def get_bing_images(query, limit):
             query, 
             limit=limit, 
             output_dir=output_dir, 
-            adult_filter_off=True, 
+            adult_filter_off=False,  # تم تفعيل فلتر الأمان لمنع الصور الحرام
             force_replace=False, 
             timeout=5,
             verbose=False
@@ -53,7 +53,7 @@ def handle_text(message):
         bot.reply_to(message, "⚠️ اختر عدداً بين 1 و 10.")
         return
 
-    msg = bot.reply_to(message, f"🔎 جاري جلب {count} صور لـ «{query}»...")
+    msg = bot.reply_to(message, f"🔎 جاري جلب {count} صور آمنة لـ «{query}»...")
 
     image_paths, main_folder = get_bing_images(query, count)
 
@@ -73,6 +73,6 @@ def handle_text(message):
         shutil.rmtree(main_folder)
 
 if __name__ == "__main__":
-    print("✅ البوت يعمل...")
+    print("✅ البوت يعمل بأمان...")
     bot.infinity_polling()
     
