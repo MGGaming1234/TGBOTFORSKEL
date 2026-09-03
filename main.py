@@ -1,6 +1,7 @@
 import os
 import shutil
 import re
+import random
 import telebot
 from icrawler.builtin import BingImageCrawler
 
@@ -9,29 +10,32 @@ TOKEN = "8988279223:AAF3Y5ZKTkWP15P7zNXUJD9gFP7v7odYCP0"
 bot = telebot.TeleBot(TOKEN)
 
 def get_accurate_images(query, limit):
-    output_dir = "dataset"
+    # إنشاء اسم مجلد عشوائي وفريد لكل طلب لمنع تكرار الصور القديمة تماماً
+    req_id = random.randint(1000, 9999)
+    output_dir = f"dataset_{req_id}"
+
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
     try:
-        # استخدام icrawler المتطور لتجاوز حظر السيرفرات وجلب أعلى نتائج مباشرة
         crawler = BingImageCrawler(
             storage={'root_dir': output_dir},
-            log_level=50 # إخفاء اللوج الزائد
+            log_level=50
         )
         
-        # البحث بكلمة البحث المطلوبة
+        # نطلب عدد أكبر قليلاً ونختار منه بشكل ذكي لضمان تنوع الصور
+        fetch_limit = limit + 5
+        
         crawler.crawl(
             keyword=query.strip(), 
-            max_num=limit,
-            min_size=(200, 200) # استبعاد الصور المصغرة والرموز
+            max_num=fetch_limit,
+            min_size=(200, 200)
         )
         
         image_paths = []
         if os.path.exists(output_dir):
             files = os.listdir(output_dir)
-            # ترتيب الصور رقمياً لضمان جلب أول وأصل نتائج البحث بالترتيب
             files.sort(key=lambda x: [int(c) if c.isdigit() else c for c in re.split(r'(\d+)', x)])
             
             for file in files:
@@ -39,7 +43,7 @@ def get_accurate_images(query, limit):
                 if os.path.isfile(file_path) and os.path.getsize(file_path) > 5120:
                     image_paths.append(file_path)
                     
-        return image_paths, output_dir
+        return image_paths[:limit], output_dir
     except Exception as e:
         print(f"خطأ أثناء الجلب: {e}")
         return [], output_dir
@@ -48,7 +52,7 @@ def get_accurate_images(query, limit):
 def send_welcome(message):
     bot.reply_to(
         message, 
-        "أهلاً بك! البوت جاهز الآن بأعلى دقة ⚡\n\nأرسل اسم الشخصية والعدد:\n`dante dmc5 3`\n`tokyo ghoul fruta 2`", 
+        "أهلاً بك! البوت جاهز للبحث عن الصور وبدون تكرار ⚡\n\nأرسل اسم الشخصية والعدد:\n`dante dmc5 10`", 
         parse_mode="Markdown"
     )
 
@@ -57,7 +61,7 @@ def handle_text(message):
     text = message.text.strip().split()
 
     if len(text) < 2 or not text[-1].isdigit():
-        bot.reply_to(message, "⚠️ **خطأ!** أرسل كلمة البحث متبوعة بالعدد.\nمثال: `dante dmc5 3`", parse_mode="Markdown")
+        bot.reply_to(message, "⚠️ **خطأ!** أرسل كلمة البحث متبوعة بالعدد.\nمثال: `dante dmc5 10`", parse_mode="Markdown")
         return
 
     count = int(text[-1])
@@ -67,7 +71,7 @@ def handle_text(message):
         bot.reply_to(message, "⚠️ اختر عدداً بين 1 و 10.")
         return
 
-    bot.reply_to(message, f"🔎 جاري جلب أول {count} صور لـ «{query}»...")
+    bot.reply_to(message, f"🔎 جاري جلب {count} صور متجددة لـ «{query}»...")
 
     image_paths, main_folder = get_accurate_images(query, count)
 
@@ -75,11 +79,11 @@ def handle_text(message):
         bot.reply_to(message, "❌ تعذر العثور على صور مطابقة، حاول بكلمات أوضح.")
         return
 
-    # إرسال ألبوم بالنتائج الأصلية الصحيحة
+    # إرسال الصور كألبوم
     try:
         media = []
         files = []
-        for path in image_paths[:count]:
+        for path in image_paths:
             f = open(path, 'rb')
             files.append(f)
             media.append(telebot.types.InputMediaPhoto(f))
@@ -90,19 +94,21 @@ def handle_text(message):
             f.close()
     except Exception as e:
         print(f"فشل إرسال الألبوم، جاري الإرسال الفردي: {e}")
-        for path in image_paths[:count]:
+        for path in image_paths:
             try:
                 with open(path, 'rb') as photo:
                     bot.send_photo(message.chat.id, photo)
             except Exception:
                 continue
 
+    # تنظيف مجلد الصور الخاص بهذا الطلب نهائياً
     if os.path.exists(main_folder):
         shutil.rmtree(main_folder)
 
 if __name__ == "__main__":
-    print("✅ البوت يعمل بواسطة icrawler...")
+    print("✅ البوت يعمل وجاهز...")
     bot.infinity_polling()
+    
         
     
                     
