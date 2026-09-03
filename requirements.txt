@@ -1,5 +1,6 @@
 pyTelegramBotAPI
-bing-image-downloader
+icrawler
 requests
+
 
 
