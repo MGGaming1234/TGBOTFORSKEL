@@ -1,53 +1,36 @@
-import os
-import shutil
-import re
 import telebot
-from bing_image_downloader import downloader
+from duckduckgo_search import DDGS
 
 TOKEN = "8988279223:AAF3Y5ZKTkWP15P7zNXUJD9gFP7v7odYCP0"
 
 bot = telebot.TeleBot(TOKEN)
 
-def get_top_character_images(query, limit):
-    output_dir = "dataset"
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-
-    # إضافة تركيز دقيق للحصول على النتائج الأولى للشخصية فقط
-    strict_query = f"{query.strip()} character"
-
+def get_ddg_images(query, limit):
+    image_urls = []
     try:
-        downloader.download(
-            strict_query, 
-            limit=limit, 
-            output_dir=output_dir, 
-            adult_filter_off=False, 
-            force_replace=False, 
-            timeout=10,
-            verbose=False
-        )
-        
-        image_paths = []
-        if os.path.exists(output_dir):
-            for root, dirs, files in os.walk(output_dir):
-                # ترتيب الصور برقم نتيجة البحث المباشرة (Image_1, Image_2, ...)
-                files.sort(key=lambda x: [int(c) if c.isdigit() else c for c in re.split(r'(\d+)', x)])
-                
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    if os.path.getsize(file_path) > 5120:
-                        image_paths.append(file_path)
+        # استخدام DuckDuckGo بفلتر أمان صارم (SafeSearch)
+        with DDGS() as ddgs:
+            results = list(ddgs.images(
+                keywords=query,
+                region="wt-wt",
+                safesearch="on",  # يمنع المحتوى غير اللائق تماماً
+                max_results=limit
+            ))
+            
+            for item in results:
+                if 'image' in item:
+                    image_urls.append(item['image'])
                     
-        return image_paths, output_dir
+        return image_urls
     except Exception as e:
-        print(f"خطأ أثناء الجلب: {e}")
-        return [], output_dir
+        print(f"خطأ في البحث: {e}")
+        return []
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     bot.reply_to(
         message, 
-        "أهلاً بك! أرسل اسم الشخصية والعدد لجلب أصل وأعلى نتائج البحث فوراً 🎯\n\nمثال:\n`dmc5 dante 3`", 
+        "أهلاً بك! البوت يعمل الآن بمحرك بحث دقيق ومجاني بالكامل ⚡\n\nأرسل اسم الشخصية والعدد:\n`dmc5 dante 3`\n`one piece luffy 5`", 
         parse_mode="Markdown"
     )
 
@@ -66,41 +49,29 @@ def handle_text(message):
         bot.reply_to(message, "⚠️ اختر عدداً بين 1 و 10.")
         return
 
-    bot.reply_to(message, f"🔎 جاري جلب أعالي نتائج البحث لـ «{query}»...")
+    bot.reply_to(message, f"🔎 جاري جلب أول {count} نتائج لـ «{query}»...")
 
-    image_paths, main_folder = get_top_character_images(query, count)
+    image_urls = get_ddg_images(query, count)
 
-    if not image_paths:
-        bot.reply_to(message, "❌ لم يتم العثور على صور مطابقة.")
+    if not image_urls:
+        bot.reply_to(message, "❌ تعذر العثور على صور، حاول بكلمات أخرى.")
         return
 
-    # إرسال ألبوم يحتوي على أعلى النتائج المتطابقة بالترتيب
+    # إرسال ألبوم يحتوي على الصور المباشرة
     try:
-        media = []
-        files = []
-        for path in image_paths[:count]:
-            f = open(path, 'rb')
-            files.append(f)
-            media.append(telebot.types.InputMediaPhoto(f))
-        
+        media = [telebot.types.InputMediaPhoto(url) for url in image_urls]
         bot.send_media_group(message.chat.id, media)
-
-        for f in files:
-            f.close()
     except Exception as e:
         print(f"فشل إرسال الألبوم، جاري الإرسال الفردي: {e}")
-        for path in image_paths[:count]:
+        for url in image_urls:
             try:
-                with open(path, 'rb') as photo:
-                    bot.send_photo(message.chat.id, photo)
+                bot.send_photo(message.chat.id, url)
             except Exception:
                 continue
 
-    if os.path.exists(main_folder):
-        shutil.rmtree(main_folder)
-
 if __name__ == "__main__":
-    print("✅ البوت يعمل لجلب أصل نتائج الشخصيات...")
+    print("✅ البوت يعمل بمحرك DuckDuckGo...")
     bot.infinity_polling()
+    
                     
     
