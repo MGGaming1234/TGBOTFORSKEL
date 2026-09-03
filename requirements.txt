@@ -1,4 +1,5 @@
 pyTelegramBotAPI
-bing-image-downloader
+duckduckgo_search
 requests
+
 
