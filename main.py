@@ -1,21 +1,14 @@
 import os
 import shutil
-import re
 import uuid
-import random
+import requests
+import urllib.parse
+from bs4 import BeautifulSoup
 import telebot
-from icrawler.builtin import BingImageCrawler
 
 TOKEN = "8988279223:AAF3Y5ZKTkWP15P7zNXUJD9gFP7v7odYCP0"
 
 bot = telebot.TeleBot(TOKEN)
-
-# متصفحات حقيقية لتجاوز حظر Railway
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-]
 
 def get_accurate_images(query, limit):
     unique_id = str(uuid.uuid4())[:8]
@@ -25,44 +18,59 @@ def get_accurate_images(query, limit):
         shutil.rmtree(output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
-    try:
-        clean_query = query.strip()
+    # استخدام Pinterest للوصول لأدق صور الألعاب والشخصيات بدون حظر
+    encoded_query = urllib.parse.quote(query.strip())
+    url = f"https://www.pinterest.com/search/pins/?q={encoded_query}"
 
-        # إجبار الكراولر على استخدام هيدرز متصفح حقيقي لتجاوز الحظر
-        crawler = BingImageCrawler(
-            downloader_threads=2,
-            storage={'root_dir': output_dir},
-            log_level=50
-        )
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9"
+    }
+
+    image_paths = []
+
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, "html.parser")
         
-        # كشط أعداد إضافية للتأكد من الملاءمة
-        crawler.crawl(
-            keyword=clean_query, 
-            max_num=limit + 5,
-            min_size=(200, 200)
-        )
+        # استخراج روابط الصور الحقيقية بدقة عالية
+        img_tags = soup.find_all("img")
+        urls = []
         
-        image_paths = []
-        if os.path.exists(output_dir):
-            files = os.listdir(output_dir)
-            files.sort(key=lambda x: [int(c) if c.isdigit() else c for c in re.split(r'(\d+)', x)])
-            
-            for file in files:
-                file_path = os.path.join(output_dir, file)
-                # التأكد من أن الملف صورة حقيقية وليس صفحة HTML أو خطأ
-                if os.path.isfile(file_path) and os.path.getsize(file_path) > 8192:
+        for img in img_tags:
+            src = img.get("src")
+            if src and "i.pinimg.com" in src:
+                # تحويل الصورة إلى أعلى دقة عالية (originals/736x)
+                high_res_url = re.sub(r'/(236x|474x)/', '/736x/', src)
+                if high_res_url not in urls:
+                    urls.append(high_res_url)
+
+        count = 0
+        for img_url in urls:
+            if count >= limit:
+                break
+            try:
+                img_data = requests.get(img_url, headers=headers, timeout=5).content
+                if len(img_data) > 8192:  # استبعاد الأيقونات والصور التالفة
+                    file_path = os.path.join(output_dir, f"img_{count}.jpg")
+                    with open(file_path, "wb") as f:
+                        f.write(img_data)
                     image_paths.append(file_path)
-                    
-        return image_paths[:limit], output_dir
+                    count += 1
+            except Exception:
+                continue
+
+        return image_paths, output_dir
+
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error fetching from Pinterest: {e}")
         return [], output_dir
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     bot.reply_to(
         message, 
-        "أهلاً بك! أرسل اسم الشخصية والعدد:\n`dmc5 dante 10`", 
+        "أهلاً بك! أرسل اسم الشخصية والعدد:\n`dante dmc5 10`", 
         parse_mode="Markdown"
     )
 
@@ -71,7 +79,7 @@ def handle_text(message):
     text = message.text.strip().split()
 
     if len(text) < 2 or not text[-1].isdigit():
-        bot.reply_to(message, "⚠️ **خطأ!** أرسل كلمة البحث متبوعة بالعدد.\nمثال: `dmc5 dante 10`", parse_mode="Markdown")
+        bot.reply_to(message, "⚠️ **خطأ!** أرسل كلمة البحث متبوعة بالعدد.\nمثال: `dante dmc5 10`", parse_mode="Markdown")
         return
 
     count = int(text[-1])
@@ -115,4 +123,4 @@ def handle_text(message):
 
 if __name__ == "__main__":
     bot.infinity_polling()
-            
+                
