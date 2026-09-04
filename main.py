@@ -2,9 +2,8 @@ import os
 import shutil
 import re
 import uuid
-import time
 import telebot
-from icrawler.builtin import BingImageCrawler
+from icrawler.builtin import YandexImageCrawler
 
 TOKEN = "8988279223:AAF3Y5ZKTkWP15P7zNXUJD9gFP7v7odYCP0"
 
@@ -21,16 +20,16 @@ def get_accurate_images(query, limit):
     try:
         clean_query = query.strip()
 
-        # تقليل مسارات التحميل لتجنب كشف IP السيرفر ومنع الحظر المؤقت
-        crawler = BingImageCrawler(
-            downloader_threads=2,
+        # Yandex هو الأفضل للألعاب والأنمي وما بيبلكش سيرفرات Railway
+        crawler = YandexImageCrawler(
+            downloader_threads=4,
             storage={'root_dir': output_dir},
             log_level=50
         )
         
         crawler.crawl(
             keyword=clean_query, 
-            max_num=limit + 2,
+            max_num=limit + 3,
             min_size=(200, 200)
         )
         
@@ -53,7 +52,7 @@ def get_accurate_images(query, limit):
 def send_welcome(message):
     bot.reply_to(
         message, 
-        "أهلاً بك! أرسل اسم الشخصية والعدد:\n`dante dmc5 10`", 
+        "أهلاً بك! أرسل اسم الشخصية والعدد:\n`dmc5 dante 10`", 
         parse_mode="Markdown"
     )
 
@@ -62,7 +61,7 @@ def handle_text(message):
     text = message.text.strip().split()
 
     if len(text) < 2 or not text[-1].isdigit():
-        bot.reply_to(message, "⚠️ **خطأ!** أرسل كلمة البحث متبوعة بالعدد.\nمثال: `dante dmc5 10`", parse_mode="Markdown")
+        bot.reply_to(message, "⚠️ **خطأ!** أرسل كلمة البحث متبوعة بالعدد.\nمثال: `dmc5 dante 10`", parse_mode="Markdown")
         return
 
     count = int(text[-1])
@@ -100,7 +99,6 @@ def handle_text(message):
         finally:
             for f in files:
                 f.close()
-        time.sleep(1)
 
     if os.path.exists(main_folder):
         shutil.rmtree(main_folder)
