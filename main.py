@@ -2,9 +2,8 @@ import os
 import shutil
 import uuid
 import requests
-import urllib.parse
-from bs4 import BeautifulSoup
 import telebot
+from duckduckgo_search import DDGS
 
 TOKEN = "8988279223:AAF3Y5ZKTkWP15P7zNXUJD9gFP7v7odYCP0"
 
@@ -18,43 +17,41 @@ def get_accurate_images(query, limit):
         shutil.rmtree(output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
-    # استخدام Pinterest للوصول لأدق صور الألعاب والشخصيات بدون حظر
-    encoded_query = urllib.parse.quote(query.strip())
-    url = f"https://www.pinterest.com/search/pins/?q={encoded_query}"
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9"
-    }
-
     image_paths = []
 
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, "html.parser")
-        
-        # استخراج روابط الصور الحقيقية بدقة عالية
-        img_tags = soup.find_all("img")
-        urls = []
-        
-        for img in img_tags:
-            src = img.get("src")
-            if src and "i.pinimg.com" in src:
-                # تحويل الصورة إلى أعلى دقة عالية (originals/736x)
-                high_res_url = re.sub(r'/(236x|474x)/', '/736x/', src)
-                if high_res_url not in urls:
-                    urls.append(high_res_url)
+        # البحث باستخدام DuckDuckGo بـ Headers متصفح حقيقي لتفادي الحظر
+        results = []
+        with DDGS() as ddgs:
+            ddgs_gen = ddgs.images(
+                keywords=query.strip(),
+                region="wt-wt",
+                safesearch="off",
+                max_results=limit + 10
+            )
+            for r in ddgs_gen:
+                results.append(r)
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+        }
 
         count = 0
-        for img_url in urls:
+        for res in results:
             if count >= limit:
                 break
+            
+            img_url = res.get("image")
+            if not img_url:
+                continue
+
             try:
-                img_data = requests.get(img_url, headers=headers, timeout=5).content
-                if len(img_data) > 8192:  # استبعاد الأيقونات والصور التالفة
+                resp = requests.get(img_url, headers=headers, timeout=6)
+                if resp.status_code == 200 and len(resp.content) > 10240:
                     file_path = os.path.join(output_dir, f"img_{count}.jpg")
                     with open(file_path, "wb") as f:
-                        f.write(img_data)
+                        f.write(resp.content)
                     image_paths.append(file_path)
                     count += 1
             except Exception:
@@ -63,14 +60,14 @@ def get_accurate_images(query, limit):
         return image_paths, output_dir
 
     except Exception as e:
-        print(f"Error fetching from Pinterest: {e}")
+        print(f"Error fetching images: {e}")
         return [], output_dir
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     bot.reply_to(
         message, 
-        "أهلاً بك! أرسل اسم الشخصية والعدد:\n`dante dmc5 10`", 
+        "أهلاً بك! أرسل اسم الشخصية والعدد:\n`Dante dmc5 10`", 
         parse_mode="Markdown"
     )
 
@@ -79,7 +76,7 @@ def handle_text(message):
     text = message.text.strip().split()
 
     if len(text) < 2 or not text[-1].isdigit():
-        bot.reply_to(message, "⚠️ **خطأ!** أرسل كلمة البحث متبوعة بالعدد.\nمثال: `dante dmc5 10`", parse_mode="Markdown")
+        bot.reply_to(message, "⚠️ **خطأ!** أرسل كلمة البحث متبوعة بالعدد.\nمثال: `Dante dmc5 10`", parse_mode="Markdown")
         return
 
     count = int(text[-1])
@@ -123,4 +120,4 @@ def handle_text(message):
 
 if __name__ == "__main__":
     bot.infinity_polling()
-                
+            
