@@ -1,6 +1,7 @@
 pyTelegramBotAPI
-duckduckgo_search
+icrawler
 requests
+
 
 
 
