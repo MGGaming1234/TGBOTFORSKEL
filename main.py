@@ -5,7 +5,7 @@ import requests
 import telebot
 
 TOKEN = "8988279223:AAF3Y5ZKTkWP15P7zNXUJD9gFP7v7odYCP0"
-SERPER_API_KEY = "C7145f24f2ff976ac2ca0cbf441d422953c3b531"
+SERPER_API_KEY = "8c5746c1e28efe8e76ba015709af79399c90c15c"
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -23,7 +23,7 @@ def get_accurate_images(query, limit):
         "num": limit + 5
     }
     headers = {
-        'X-API-KEY': SERPER_API_KEY,
+        'X-API-KEY': SERPER_API_KEY.strip(),
         'Content-Type': 'application/json'
     }
 
@@ -31,8 +31,12 @@ def get_accurate_images(query, limit):
 
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=10)
-        data = response.json()
         
+        if response.status_code != 200:
+            print(f"Serper API Error: {response.status_code} - {response.text}")
+            return [], output_dir
+
+        data = response.json()
         images = data.get("images", [])
 
         count = 0
@@ -122,4 +126,4 @@ def handle_text(message):
 
 if __name__ == "__main__":
     bot.infinity_polling()
-        
+    
