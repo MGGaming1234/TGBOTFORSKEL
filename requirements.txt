@@ -1,6 +1,6 @@
 pyTelegramBotAPI
-icrawler
 requests
+beautifulsoup4
 
 
 
