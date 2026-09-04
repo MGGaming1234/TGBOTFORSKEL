@@ -1,13 +1,11 @@
 import os
 import shutil
-import re
 import uuid
-import json
-import urllib.parse
 import requests
 import telebot
 
 TOKEN = "8988279223:AAF3Y5ZKTkWP15P7zNXUJD9gFP7v7odYCP0"
+SERPER_API_KEY = "C7145f24f2ff976ac2ca0cbf441d422953c3b531"
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -19,46 +17,39 @@ def get_accurate_images(query, limit):
         shutil.rmtree(output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
-    # محاكاة متصفح حقيقي بالكامل لتجاوز كشف البوتات على Railway
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate, br",
-        "DNT": "1",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1"
+    url = "https://google.serper.dev/images"
+    payload = {
+        "q": query.strip(),
+        "num": limit + 5
     }
-
-    encoded_query = urllib.parse.quote(query.strip())
-    search_url = f"https://www.google.com/search?q={encoded_query}&tbm=isch&asearch=arc&async=_id:rg_s,_pms:s,_fmt:pc"
+    headers = {
+        'X-API-KEY': SERPER_API_KEY,
+        'Content-Type': 'application/json'
+    }
 
     image_paths = []
 
     try:
-        session = requests.Session()
-        res = session.get(search_url, headers=headers, timeout=10)
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        data = response.json()
         
-        # استخراج روابط الصور الأصلية باستخدام Regex المباشر
-        img_urls = re.findall(r'https?://[^\s"]+\.(?:jpg|jpeg|png)', res.text)
-        
-        # تصفية الروابط واستبعاد المصغرات الضئيلة
-        clean_urls = []
-        for url in img_urls:
-            if "encrypted-tbn0" not in url and "gstatic" not in url:
-                if url not in clean_urls:
-                    clean_urls.append(url)
-
-        # لو لم يجد صور كبيرة، نأخذ الصور المتاحة
-        if not clean_urls:
-            clean_urls = list(set(img_urls))
+        images = data.get("images", [])
 
         count = 0
-        for img_url in clean_urls:
+        req_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        }
+
+        for item in images:
             if count >= limit:
                 break
+            
+            img_url = item.get("imageUrl")
+            if not img_url:
+                continue
+
             try:
-                img_res = session.get(img_url, headers=headers, timeout=5)
+                img_res = requests.get(img_url, headers=req_headers, timeout=5)
                 if img_res.status_code == 200 and len(img_res.content) > 5120:
                     file_path = os.path.join(output_dir, f"img_{count}.jpg")
                     with open(file_path, "wb") as f:
@@ -131,4 +122,4 @@ def handle_text(message):
 
 if __name__ == "__main__":
     bot.infinity_polling()
-    
+        
