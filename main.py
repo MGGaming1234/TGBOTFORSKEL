@@ -2,18 +2,13 @@ import os
 import shutil
 import re
 import uuid
-import random
+import time
 import telebot
 from icrawler.builtin import BingImageCrawler
 
 TOKEN = "8988279223:AAF3Y5ZKTkWP15P7zNXUJD9gFP7v7odYCP0"
 
 bot = telebot.TeleBot(TOKEN)
-
-VARIATION_SUFFIXES = [
-    "", "fanart", "wallpaper", "hd", "render", 
-    "art", "cool", "official", "poster", "4k"
-]
 
 def get_accurate_images(query, limit):
     unique_id = str(uuid.uuid4())[:8]
@@ -24,17 +19,18 @@ def get_accurate_images(query, limit):
     os.makedirs(output_dir, exist_ok=True)
 
     try:
-        suffix = random.choice(VARIATION_SUFFIXES)
-        search_query = f"{query.strip()} {suffix}".strip()
+        clean_query = query.strip()
 
+        # تقليل مسارات التحميل لتجنب كشف IP السيرفر ومنع الحظر المؤقت
         crawler = BingImageCrawler(
+            downloader_threads=2,
             storage={'root_dir': output_dir},
             log_level=50
         )
         
         crawler.crawl(
-            keyword=search_query, 
-            max_num=limit + 5,
+            keyword=clean_query, 
+            max_num=limit + 2,
             min_size=(200, 200)
         )
         
@@ -104,6 +100,7 @@ def handle_text(message):
         finally:
             for f in files:
                 f.close()
+        time.sleep(1)
 
     if os.path.exists(main_folder):
         shutil.rmtree(main_folder)
